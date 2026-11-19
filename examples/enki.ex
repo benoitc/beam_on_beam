@@ -1,5 +1,5 @@
 # Draws the Enki Multimedia logo in the terminal. The logo is a few polygons
-# with gradients; the script rasterises them itself. One process per line of
+# with gradients; the module rasterises them itself. One process per line of
 # text computes it and sends it to the parent, which prints the lines in
 # order. A line of text is two rows of pixels: the upper half block takes the
 # top pixel as its foreground and the bottom one as its background.
@@ -121,5 +121,3 @@ defmodule Enki do
     ]
   end
 end
-
-Enki.main()

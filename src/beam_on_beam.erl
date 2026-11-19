@@ -70,8 +70,8 @@ run_module(Source, Opts) ->
 
 -doc """
 Run the file `Path` in the guest and print what it wrote: an Elixir script
-(`.exs`), or an Erlang module with `main/0`, as source (`.erl`) or compiled
-(`.beam`). This is the call to make
+(`.exs`), or a module with `main/0`: Erlang source (`.erl`), Elixir source
+(`.ex`), or compiled (`.beam`). Sources of modules are compiled on the host. This is the call to make
 from the Erlang shell. Returns the guest's exit code.
 """.
 -spec run_file(file:name_all()) -> {ok, integer()} | {error, term()}.
@@ -95,10 +95,61 @@ file_result(Path, Opts) ->
             case filename:extension(Path) of
                 Ext when Ext =:= ".erl"; Ext =:= ~".erl" -> precompiled(Path, Opts);
                 Ext when Ext =:= ".beam"; Ext =:= ~".beam" -> beam_file(Source, Opts);
+                Ext when Ext =:= ".ex"; Ext =:= ~".ex" -> elixir_module(Path, Opts);
                 _ -> eval_elixir(Source, Opts)
             end;
         {error, Reason} ->
             {error, {Path, Reason}}
+    end.
+
+%% An Elixir file of modules is compiled here, on the host, with `elixirc',
+%% and the guest loads the results. The module to run is the one that exports
+%% `main/0'.
+elixir_module(Path, Opts) ->
+    case os:find_executable("elixirc") of
+        false ->
+            {error, no_elixirc};
+        Elixirc ->
+            Out = scratch_root(),
+            ok = filelib:ensure_path(Out),
+            try
+                Port = open_port({spawn_executable, Elixirc},
+                                 [{args, ["-o", Out, Path]}, exit_status,
+                                  stderr_to_stdout, binary]),
+                case port_output(Port, []) of
+                    {0, _} -> compiled_elixir(Out, Opts);
+                    {_, Log} -> {error, {compile, Log}}
+                end
+            after
+                _ = file:del_dir_r(Out)
+            end
+    end.
+
+port_output(Port, Acc) ->
+    receive
+        {Port, {data, Data}} -> port_output(Port, [Data | Acc]);
+        {Port, {exit_status, Status}} ->
+            {Status, iolist_to_binary(lists:reverse(Acc))}
+    end.
+
+compiled_elixir(Dir, Opts) ->
+    Beams = [begin
+                 {ok, Beam} = file:read_file(File),
+                 {filename:basename(File), Beam}
+             end || File <- filelib:wildcard(filename:join(Dir, "*.beam"))],
+    Mains = [Module || {_, Beam} <- Beams,
+                       {ok, {Module, [{exports, Exports}]}} <-
+                           [beam_lib:chunks(Beam, [exports])],
+                       lists:member({main, 0}, Exports)],
+    case Mains of
+        [Module] ->
+            {value, {_, Main}, Others} =
+                lists:keytake(atom_to_list(Module) ++ ".beam", 1, Beams),
+            Files = [{"work/" ++ Name, Beam} || {Name, Beam} <- Others],
+            run_beam(Module, Main,
+                     Opts#{files => Files ++ maps:get(files, Opts, [])});
+        [] -> {error, no_main};
+        _ -> {error, {several_mains, Mains}}
     end.
 
 %% A compiled module: its name is the one inside the file, whatever the file
@@ -133,7 +184,13 @@ returns with the `binary` option, from the same OTP release as the guest's.
 run_beam(Module, Beam, Opts) ->
     Files = maps:get(files, Opts, []),
     Name = atom_to_list(Module),
-    Code = io_lib:format("~p:main(), halt().", [Module]),
+    %% An Elixir module runs with the `elixir' application started, as it
+    %% would under `elixir' or `mix'.
+    Start = case Name of
+                "Elixir." ++ _ -> "{ok, _} = application:ensure_all_started(elixir), ";
+                _ -> ""
+            end,
+    Code = [Start, io_lib:format("~p:main(), halt().", [Module])],
     run([~"-pa", ~"/work", ~"-eval", iolist_to_binary(Code)],
         Opts#{files => [{"work/" ++ Name ++ ".beam", Beam} | Files]}).
 

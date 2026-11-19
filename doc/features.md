@@ -36,6 +36,7 @@ orders of magnitude:
 | `examples/enki.erl`, compiled in the guest | 535 s |
 | `examples/enki.erl`, compiled on the host | 192 s |
 | `examples/enki.exs`, compiled in the guest, while another guest ran beside it | 726 s |
+| `examples/enki.ex`, compiled on the host | 359 s |
 | the same boot on Wasmtime 50.0.1, compiled code cached | 0.11 s |
 
 Wasmtime needs about 690 million units of fuel for that boot, which is close
@@ -81,6 +82,11 @@ The guest did not start on erlang_wasm 0.10.2. These changes are on the
   change 8. It has not been measured since.
 - **Tests in erlang_wasm.** The changes above have no test of their own yet.
   Each needs a small WAT case that fails without it.
+- **Where the time goes.** A sample of the guest's scheduler thread during
+  boot: about 90% in erlang_wasm's interpreter, about 10% waiting for the
+  owner process to answer a host call. A quarter of the samples are in
+  `lists:nth` and `lists:nthtail` under the interpreter's branch handling:
+  the BEAM's main loop is one very large `switch`.
 - **A compiled guest.** Compiling the program on the host removes the guest's
   compile time, not the boot: about 90 s of every call is OTP starting. The
   real gain is erlang_wasm compiling `beam.wasm` itself to BEAM code and

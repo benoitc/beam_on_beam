@@ -53,19 +53,24 @@ beam_on_beam:run([~"-eval", ~"erlang:display(node()), halt()."], #{}).
 
 ## Run a script
 
-`scripts/run.sh` runs a file in the guest and prints what it wrote: an Elixir
-script (`.exs`), or an Erlang module with a `main/0` (`.erl`).
+`scripts/run.sh` runs a file in the guest and prints what it wrote:
+
+| file | what it is | where it is compiled |
+| --- | --- | --- |
+| `.erl` | an Erlang module with `main/0` | on the host |
+| `.ex` | an Elixir module with `main/0` | on the host, with `elixirc` |
+| `.beam` | a compiled module with `main/0` | already compiled |
+| `.exs` | an Elixir script | in the guest, which is slower |
 
 ```sh
 scripts/run.sh examples/enki.erl
-scripts/run.sh examples/enki.exs
+scripts/run.sh examples/enki.ex
 scripts/run.sh examples/triangle.erl
 scripts/run.sh examples/triangle.exs
 ```
 
-An Erlang file is compiled on the host and the guest loads the `.beam`, so
-host and guest must be the same OTP release (29). An Elixir script is
-compiled by the guest, which is slower.
+The host compiles with its own Erlang and Elixir, so it must run the same OTP
+release as the guest (29) and a close Elixir (the guest has 1.20.5).
 
 `examples/enki.*` draws the Enki Multimedia logo: the program rasterises the
 logo's polygons and gradients itself, one process per line of text, in 24-bit
@@ -107,6 +112,22 @@ io:format("~ts", [Out]).
 {ok, #{stdout := Out}} = beam_on_beam:run_beam(Module, Beam).
 ```
 
+An Elixir module is the same, under its full name. Compile it with `elixirc`
+and run the `.beam`, or let `run_file/1` do both from the `.ex` file:
+
+```sh
+elixirc -o /tmp examples/enki.ex
+scripts/run.sh /tmp/Elixir.Enki.beam
+```
+
+```erlang
+{ok, Beam} = file:read_file("/tmp/Elixir.Enki.beam"),
+{ok, #{stdout := Out}} = beam_on_beam:run_beam('Elixir.Enki', Beam).
+```
+
+For a module whose name starts with `Elixir.`, the guest starts the `elixir`
+application before it calls `main/0`.
+
 The guest finds the module in `/work`, which is on its code path, and loads
 it the first time `main/0` is called. To give it several modules, add the
 others with the `files` option:
@@ -124,6 +145,7 @@ rebar3 shell
 
 ```erlang
 1> beam_on_beam:run_file("examples/enki.erl").
+2> beam_on_beam:run_file("examples/enki.ex").
 ```
 
 `run_file/1` prints what the guest wrote and returns `{ok, ExitCode}`. The
@@ -133,7 +155,7 @@ other calls return the output instead of printing it:
 | --- | --- |
 | `eval/1,2` | Erlang expressions, as `erl -eval` |
 | `eval_elixir/1,2` | an Elixir script |
-| `run_beam/2,3` | a module compiled on the host: `Module:main()` |
+| `run_beam/2,3` | a compiled module, Erlang or Elixir: `Module:main()` |
 | `run_module/1,2` | an Erlang module the guest compiles itself, then `main/0` |
 | `run/2` | your own `init` arguments |
 
