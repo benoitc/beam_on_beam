@@ -86,8 +86,6 @@ erlang_wasm, in the order the boot ran into them:
   one call that never returns.
 - **Memory.** The host process reached about 9 GB in a run made before
   change 8. It has not been measured since.
-- **Tests in erlang_wasm.** The changes above have no test of their own yet.
-  Each needs a small WAT case that fails without it.
 - **Where the time goes.** A sample of the guest's scheduler thread during
   boot: about 90% in erlang_wasm's interpreter, about 10% waiting for the
   owner process to answer a host call. A quarter of the samples are in
