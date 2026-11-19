@@ -60,14 +60,18 @@ boot once, start a guest and keep it:
 1> {ok, VM} = beam_on_beam_vm:start().                    % about 70 s
 2> beam_on_beam_vm:run_file(VM, "examples/triangle.erl"). % about 1 to 4 s
 3> beam_on_beam_vm:run_file(VM, "examples/enki.erl").     % about 40 s
-4> beam_on_beam_vm:run_file(VM, "examples/enki.ex").
-5> beam_on_beam_vm:eval(VM, "length(processes()).").
-6> beam_on_beam_vm:stop(VM).
+4> beam_on_beam_vm:run_file(VM, "examples/triangle.ex").  % 19 s, then under 1 s
+5> beam_on_beam_vm:run_file(VM, "examples/enki.ex").
+6> beam_on_beam_vm:eval(VM, "length(processes()).").
+7> beam_on_beam_vm:stop(VM).
 ```
 
 `run_file/2` takes a module with `main/0` (`.erl`, `.ex` or `.beam`), prints
 what it wrote and returns `{ok, Milliseconds}`. `run_beam/3` and `eval/2`
 return the output instead. Sources are compiled on the host, as below.
+
+The first Elixir module a guest runs also starts the `elixir` application,
+once, which is the 19 s above.
 
 The guest is one BEAM that keeps its state: a module you run again is loaded
 again, but processes a job leaves behind stay. Jobs run one at a time.
@@ -87,6 +91,7 @@ again, but processes a job leaves behind stay. Jobs run one at a time.
 scripts/run.sh examples/enki.erl
 scripts/run.sh examples/enki.ex
 scripts/run.sh examples/triangle.erl
+scripts/run.sh examples/triangle.ex
 scripts/run.sh examples/triangle.exs
 ```
 

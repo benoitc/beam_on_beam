@@ -39,6 +39,7 @@ orders of magnitude:
 | `examples/enki.ex`, compiled on the host | 359 s |
 | `beam_on_beam_vm:start/0` | 64 to 75 s |
 | `triangle.erl` in a booted guest | 0.6 to 4 s |
+| `triangle.ex` in a booted guest: the first Elixir job, then the next | 19 s, 0.6 s |
 | `enki.erl` in a booted guest | 40 s |
 | `enki.ex` in a booted guest, before the example's colour codes were made cheaper | 90 and 105 s |
 | the same boot on Wasmtime 50.0.1, compiled code cached | 0.11 s |
