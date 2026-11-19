@@ -24,11 +24,15 @@ defmodule Enki do
   end
 
   defp line(l) do
-    for c <- 0..(@cols - 1), do: cell(pixel(c, 2 * l), pixel(c, 2 * l + 1))
+    # Topmost shape first, each with the box around it.
+    shapes = for {shape, paint} <- Enum.reverse(shapes()), do: {shape, box(shape), paint}
+
+    for c <- 0..(@cols - 1),
+        do: cell(pixel(c, 2 * l, shapes), pixel(c, 2 * l + 1, shapes))
   end
 
-  defp pixel(col, row) do
-    colour(@left + (col + 0.5) * @step, @top + (row + 0.5) * @step)
+  defp pixel(col, row, shapes) do
+    colour(@left + (col + 0.5) * @step, @top + (row + 0.5) * @step, shapes)
   end
 
   defp cell(nil, nil), do: "\e[0m "
@@ -39,10 +43,12 @@ defmodule Enki do
   defp fg({r, g, b}), do: "\e[38;2;#{r};#{g};#{b}m"
   defp bg({r, g, b}), do: "\e[48;2;#{r};#{g};#{b}m"
 
-  # The colour of the topmost shape that covers the point, or nil.
-  defp colour(x, y) do
-    Enum.find_value(Enum.reverse(shapes()), fn {shape, paint} ->
-      if inside?(x, y, shape), do: paint(paint, x, y, box(shape))
+  # The colour of the first shape that covers the point, or nil. A point
+  # outside a shape's box is outside the shape, which spares most of the work.
+  defp colour(x, y, shapes) do
+    Enum.find_value(shapes, fn {shape, {x0, y0, x1, y1} = box, paint} ->
+      if x >= x0 and x <= x1 and y >= y0 and y <= y1 and inside?(x, y, shape),
+        do: paint(paint, x, y, box)
     end)
   end
 

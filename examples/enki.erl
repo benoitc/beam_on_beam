@@ -22,28 +22,34 @@ main() ->
     ok.
 
 line(L) ->
-    [cell(pixel(C, 2 * L), pixel(C, 2 * L + 1)) || C <- lists:seq(0, ?COLS - 1)].
+    %% Topmost shape first, each with the box around it.
+    Shapes = [{Shape, box(Shape), Paint}
+              || {Shape, Paint} <- lists:reverse(shapes())],
+    [cell(pixel(C, 2 * L, Shapes), pixel(C, 2 * L + 1, Shapes))
+     || C <- lists:seq(0, ?COLS - 1)].
 
-pixel(Col, Row) ->
-    colour(?LEFT + (Col + 0.5) * ?STEP, ?TOP + (Row + 0.5) * ?STEP).
+pixel(Col, Row, Shapes) ->
+    colour(?LEFT + (Col + 0.5) * ?STEP, ?TOP + (Row + 0.5) * ?STEP, Shapes).
 
 cell(none, none) -> ~"\e[0m ";
 cell(Top, none) -> [~"\e[0m", fg(Top), ~"▀"];
 cell(none, Bottom) -> [~"\e[0m", fg(Bottom), ~"▄"];
 cell(Top, Bottom) -> [fg(Top), bg(Bottom), ~"▀"].
 
-fg({R, G, B}) -> io_lib:format("\e[38;2;~b;~b;~bm", [R, G, B]).
-bg({R, G, B}) -> io_lib:format("\e[48;2;~b;~b;~bm", [R, G, B]).
+fg(RGB) -> [~"\e[38;2;", rgb(RGB), $m].
+bg(RGB) -> [~"\e[48;2;", rgb(RGB), $m].
 
-%% The colour of the topmost shape that covers the point, or `none'.
-colour(X, Y) ->
-    colour(X, Y, lists:reverse(shapes())).
+rgb({R, G, B}) ->
+    [integer_to_binary(R), $;, integer_to_binary(G), $;, integer_to_binary(B)].
 
+%% The colour of the first shape that covers the point, or `none'. A point
+%% outside a shape's box is outside the shape, which spares most of the work.
 colour(_X, _Y, []) ->
     none;
-colour(X, Y, [{Shape, Paint} | Rest]) ->
-    case inside(X, Y, Shape) of
-        true -> paint(Paint, X, Y, box(Shape));
+colour(X, Y, [{Shape, {X0, Y0, X1, Y1} = Box, Paint} | Rest]) ->
+    case X >= X0 andalso X =< X1 andalso Y >= Y0 andalso Y =< Y1
+        andalso inside(X, Y, Shape) of
+        true -> paint(Paint, X, Y, Box);
         false -> colour(X, Y, Rest)
     end.
 

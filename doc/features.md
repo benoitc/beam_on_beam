@@ -18,7 +18,7 @@ time on a part that is known not to work.
 | Elixir 1.20.5 in the guest, started from Erlang with `application:ensure_all_started(elixir)` and `'Elixir.Code':eval_string/1` | works |
 | stdin, the framed host protocol of Kettlecorn | not wired |
 | Network (`wasi:sockets`), `beam-http.wasm` (`wasi:http`) | not tried |
-| A guest kept running between calls | not there: every call boots a new one |
+| A guest kept running between calls (`beam_on_beam_vm`): boot once, then run files, modules and expressions in it | works |
 
 ## Measured
 
@@ -37,6 +37,10 @@ orders of magnitude:
 | `examples/enki.erl`, compiled on the host | 192 s |
 | `examples/enki.exs`, compiled in the guest, while another guest ran beside it | 726 s |
 | `examples/enki.ex`, compiled on the host | 359 s |
+| `beam_on_beam_vm:start/0` | 64 to 75 s |
+| `triangle.erl` in a booted guest | 0.6 to 4 s |
+| `enki.erl` in a booted guest | 40 s |
+| `enki.ex` in a booted guest, before the example's colour codes were made cheaper | 90 and 105 s |
 | the same boot on Wasmtime 50.0.1, compiled code cached | 0.11 s |
 
 Wasmtime needs about 690 million units of fuel for that boot, which is close
@@ -91,4 +95,7 @@ The guest did not start on erlang_wasm 0.10.2. These changes are on the
   compile time, not the boot: about 90 s of every call is OTP starting. The
   real gain is erlang_wasm compiling `beam.wasm` itself to BEAM code and
   keeping it in its code cache, which the tier cannot do yet for this guest.
-- **The network, a long-lived guest.** See the table above.
+- **The long-lived guest talks through files.** The host and the guest poll
+  one shared directory, because the guest's stdin is not a stream yet. A
+  host that is killed leaves its scratch directories behind.
+- **The network.** See the table above.

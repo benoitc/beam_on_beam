@@ -10,6 +10,7 @@ expression in it and returns what it printed.
 -export([eval/1, eval/2, eval_elixir/1, eval_elixir/2, run_module/1, run_module/2,
          run/2, runtime_dir/0]).
 -export([run_beam/2, run_beam/3, run_file/1, run_file/2, main/1]).
+-export([modules/1, scratch_root/0, copy_tree/2]).
 
 -type result() :: {ok, #{stdout := binary(), stderr := binary(),
                          exit_code := integer()}}
@@ -106,6 +107,9 @@ file_result(Path, Opts) ->
 %% and the guest loads the results. The module to run is the one that exports
 %% `main/0'.
 elixir_module(Path, Opts) ->
+    elixirc(Path, fun(Out) -> compiled_elixir(Out, Opts) end).
+
+elixirc(Path, Then) ->
     case os:find_executable("elixirc") of
         false ->
             {error, no_elixirc};
@@ -117,7 +121,7 @@ elixir_module(Path, Opts) ->
                                  [{args, ["-o", Out, Path]}, exit_status,
                                   stderr_to_stdout, binary]),
                 case port_output(Port, []) of
-                    {0, _} -> compiled_elixir(Out, Opts);
+                    {0, _} -> Then(Out);
                     {_, Log} -> {error, {compile, Log}}
                 end
             after
@@ -148,6 +152,54 @@ compiled_elixir(Dir, Opts) ->
             Files = [{"work/" ++ Name, Beam} || {Name, Beam} <- Others],
             run_beam(Module, Main,
                      Opts#{files => Files ++ maps:get(files, Opts, [])});
+        [] -> {error, no_main};
+        _ -> {error, {several_mains, Mains}}
+    end.
+
+-doc """
+The compiled modules of the file `Path`, an Erlang source (`.erl`), an Elixir
+source (`.ex`) or a compiled module (`.beam`): the module that has `main/0`,
+and every module with its binary. Sources are compiled on the host.
+""".
+-spec modules(file:name_all()) ->
+          {ok, module(), [{module(), binary()}]} | {error, term()}.
+modules(Path) ->
+    case filename:extension(Path) of
+        Ext when Ext =:= ".erl"; Ext =:= ~".erl" ->
+            case compile:file(Path, [binary, return_errors]) of
+                {ok, Module, Beam} -> {ok, Module, [{Module, Beam}]};
+                {error, Errors, _Warnings} -> {error, {compile, Errors}}
+            end;
+        Ext when Ext =:= ".beam"; Ext =:= ~".beam" ->
+            maybe
+                {ok, Beam} ?= file:read_file(Path),
+                {ok, Module} ?= module_of(Beam),
+                {ok, Module, [{Module, Beam}]}
+            end;
+        Ext when Ext =:= ".ex"; Ext =:= ~".ex" ->
+            elixirc(Path, fun elixir_modules/1);
+        Other ->
+            {error, {not_a_module_file, Other}}
+    end.
+
+module_of(Beam) ->
+    case beam_lib:info(Beam) of
+        {error, beam_lib, Reason} -> {error, {not_a_beam_file, Reason}};
+        Info -> {ok, proplists:get_value(module, Info)}
+    end.
+
+elixir_modules(Dir) ->
+    Beams = [begin
+                 {ok, Beam} = file:read_file(File),
+                 {ok, Module} = module_of(Beam),
+                 {Module, Beam}
+             end || File <- filelib:wildcard(filename:join(Dir, "*.beam"))],
+    Mains = [Module || {Module, Beam} <- Beams,
+                       {ok, {_, [{exports, Exports}]}} <-
+                           [beam_lib:chunks(Beam, [exports])],
+                       lists:member({main, 0}, Exports)],
+    case Mains of
+        [Main] -> {ok, Main, Beams};
         [] -> {error, no_main};
         _ -> {error, {several_mains, Mains}}
     end.
@@ -229,13 +281,15 @@ run(InitArgs, Opts) ->
             try
                 ok = copy_tree(filename:join(Runtime, "root"), Root),
                 ok = write_files(Root, maps:get(files, Opts, [])),
-                WasiOpts = maps:without([runtime, files], Opts),
+                WasiOpts = maps:without([runtime, files, extra_preopens], Opts),
+                %% The private root is `/'; `extra_preopens' adds host
+                %% directories beside it, as `{GuestPath, HostDir, Writable}'.
+                Mounts = [{~"/", Root, true} | maps:get(extra_preopens, Opts, [])],
                 wasi_preview3:run_command(
                   Bin, <<>>,
                   WasiOpts#{args => args(Runtime, InitArgs),
                             env => env(Runtime),
-                            preopen => Root,
-                            writable => true})
+                            preopens => Mounts})
             after
                 _ = file:del_dir_r(Root)
             end;

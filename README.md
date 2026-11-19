@@ -51,6 +51,27 @@ To pass your own `init` arguments, use `run/2`:
 beam_on_beam:run([~"-eval", ~"erlang:display(node()), halt()."], #{}).
 ```
 
+## Boot once, run many times
+
+Every call above boots OTP again, which is most of its time. To pay for the
+boot once, start a guest and keep it:
+
+```erlang
+1> {ok, VM} = beam_on_beam_vm:start().                    % about 70 s
+2> beam_on_beam_vm:run_file(VM, "examples/triangle.erl"). % about 1 to 4 s
+3> beam_on_beam_vm:run_file(VM, "examples/enki.erl").     % about 40 s
+4> beam_on_beam_vm:run_file(VM, "examples/enki.ex").
+5> beam_on_beam_vm:eval(VM, "length(processes()).").
+6> beam_on_beam_vm:stop(VM).
+```
+
+`run_file/2` takes a module with `main/0` (`.erl`, `.ex` or `.beam`), prints
+what it wrote and returns `{ok, Milliseconds}`. `run_beam/3` and `eval/2`
+return the output instead. Sources are compiled on the host, as below.
+
+The guest is one BEAM that keeps its state: a module you run again is loaded
+again, but processes a job leaves behind stay. Jobs run one at a time.
+
 ## Run a script
 
 `scripts/run.sh` runs a file in the guest and prints what it wrote:
@@ -174,8 +195,8 @@ is not connected.
 
 ## Notes
 
-- One call takes about 90 seconds on a loaded laptop, and about 3 minutes
-  for an example. Wasmtime boots the same
+- One call of `beam_on_beam` takes 70 to 90 seconds on a loaded laptop
+  before your code starts. `beam_on_beam_vm` pays that once. Wasmtime boots the same
   guest in about 0.1 second. [Features](doc/features.md) says where the time
   goes.
 - The guest's words are 32 bits and it has one scheduler.
