@@ -20,20 +20,21 @@ For a fast sandbox for Elixir or Erlang code, use
 
 ## Set it up
 
-You need Erlang/OTP 29, rebar3, and a checkout of erlang_wasm on its
-`beam-guest` branch, which has the runtime fixes this guest needs.
+You need Erlang/OTP 29 and rebar3. For Elixir modules you also need Elixir
+1.20 on the host.
 
 ```sh
-# 1. Link the erlang_wasm branch as a checkout dependency.
-mkdir -p _checkouts
-ln -s /path/to/erlang_wasm-beam _checkouts/wasm
-
-# 2. Download the Kettlecorn runtime (beam.wasm and the OTP .beam files).
+# 1. Download the Kettlecorn runtime (beam.wasm and the OTP .beam files).
 scripts/fetch-runtime.sh
 
-# 3. Build.
+# 2. Build.
 rebar3 compile
 ```
+
+erlang_wasm comes from its `beam-guest` branch, which has the runtime fixes
+this guest needs
+([pull request 139](https://github.com/benoitc/erlang_wasm/pull/139)). To
+work on erlang_wasm at the same time, link your checkout as `_checkouts/wasm`.
 
 ## Evaluate Erlang in the guest
 

@@ -49,8 +49,9 @@ to the number of WebAssembly instructions it runs.
 
 ## What erlang_wasm needed
 
-The guest did not start on erlang_wasm 0.10.2. These changes are on the
-`beam-guest` branch of erlang_wasm, in the order the boot ran into them:
+The guest did not start on erlang_wasm 0.10.2. These changes are in
+[pull request 139](https://github.com/benoitc/erlang_wasm/pull/139) of
+erlang_wasm, in the order the boot ran into them:
 
 1. **`run` lifted without the async option.** wasi-libc lifts the async
    function `wasi:cli/run` as a plain function that blocks. The runner only
