@@ -31,10 +31,10 @@ scripts/fetch-runtime.sh
 rebar3 compile
 ```
 
-erlang_wasm comes from its `beam-guest` branch, which has the runtime fixes
-this guest needs
-([pull request 139](https://github.com/benoitc/erlang_wasm/pull/139)). To
-work on erlang_wasm at the same time, link your checkout as `_checkouts/wasm`.
+erlang_wasm comes from its `main` branch: the runtime fixes this guest needs
+([pull request 139](https://github.com/benoitc/erlang_wasm/pull/139)) are
+merged and not in a release yet. To work on erlang_wasm at the same time,
+link your checkout as `_checkouts/wasm`.
 
 ## Evaluate Erlang in the guest
 
