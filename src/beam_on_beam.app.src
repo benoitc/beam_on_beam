@@ -1,0 +1,10 @@
+{application, beam_on_beam, [
+    {description, "Run the BEAM inside erlang_wasm"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [kernel, stdlib, wasm]},
+    {env, []},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, []}
+]}.
